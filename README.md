@@ -15,7 +15,7 @@ main files
 - `nilpotence_tester.jl` used to verify the "nilpotence" property of gadgets used in the toric code automaton
 - `helper_functions.jl` contains miscellaneous auxillary functions 
 - `circuit_plotter.py` plots data output (as `.jld2` files) from `circuit_simulator.jl`
-- `1d_circuit_drawer.py` draws diagrams of circuits (and spacetime spin configurations) for 1d codes 
+- `1d_circuit_visualizer.py` draws diagrams of circuits (and spacetime spin configurations) for 1d codes 
 - `2d_circuit_visualizer.py` an interactive visualizer for the toric code automaton 
 
 currently supported codes 
