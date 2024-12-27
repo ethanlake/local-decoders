@@ -24,8 +24,10 @@ def loaddata(fin):
     with h5py.File(fin, "r") as f:
         key_list = [key for key in f.keys() if not key.startswith("_")] # saving dictionaries to jld2 files can sometimes cause the creation of additional keys describing the data structure that we don't care about
         data_dict = dict.fromkeys(key_list)
+
         for key in key_list:
             data_dict[key] = f[key][()]  
+            # print(key,np.shape(data_dict[key]))
 
     return data_dict 
 
@@ -43,9 +45,10 @@ parser.add_argument('-plot_corrs',action='store_true') # if true, plots correlat
 parser.add_argument('-corr_image_space',action='store_true') # if true, plots a 2d image of equal-time spatial correlators (at floquet times by default)
 parser.add_argument('-corr_image_time',action='store_true') # if true, plots a 2d image of temporal correlators at zero spatial separation (at system center by default)
 parser.add_argument('-dw_stats',action='store_true') # if true, plots domain wall statistics data 
-parser.add_argument('-plt',default='chi') # if not interactive and none of the above 3 options are true, will make a static plot of the thermodynamic quantity specified by this argument. one of ['bind' 'chi' 'mag']. will attempt to scale this data unless args.raw is true. if interactive, plt must either be chi or mag. 
-parser.add_argument('-raw',action='store_true') # if true, plots raw data (instead of scaling it)
+parser.add_argument('-plt',default='chis') # if not interactive and none of the above 3 options are true, will make a static plot of the thermodynamic quantity specified by this argument. will attempt to scale this data unless args.raw is true. 
+# options: ['binds' 'chis' 'Ms' 'Cs' 'Es' 'dMdps' 'dEdps'], plus appropriate floquet versions (e.g. 'floquet_chis').
 
+parser.add_argument('-raw',action='store_true') # if true, plots raw data (instead of scaling it)
 parser.add_argument('-change_xscale',action='store_true') # flips the x axis scale from linear to log (or vice versa, depending on the default)
 parser.add_argument('-change_yscale',action='store_true') # as above but for y axis 
 args = parser.parse_args() 
@@ -105,7 +108,7 @@ if mode == "Ft":
             titlestring = titlestring + r"$\,\,|\,\,{\rm (gadget\, noise)}$"
     ax.set_title(titlestring)
     ax.set(xlabel=r'$p$',ylabel=r"$F$")
-    ax.legend(title=r'$\log_3(L)$',title_fontsize=legend_title_fontsize,fontsize=legend_fontsize)
+    ax.legend(title=r'$L$',title_fontsize=legend_title_fontsize,fontsize=legend_fontsize)
 
     if args.change_xscale: 
         ax.set_xscale('log')
@@ -148,8 +151,10 @@ elif mode == "trel":
             if model == "tc": # can have some weird scaling, so plot the power law
                 if l == 1 and plot_crossover: # show the crossover between different scaling regimes 
                     ax.plot(np.log(1/xs),(xs/xs[0])**(-2) * ys[0],ls='--',color=col,lw=2.5,label=r'$%d$'%(2)) # fit to the form expected 
-                    ax.plot(np.log(1/xs),(xs/xs[-1])**(-3) * ys[-1],ls='-.',color=col,lw=2.5,label=r'$%d$'%(3)) # fit to the form expected 
+                    ax.plot(np.log(1/xs),(xs/xs[-1])**(-3) * ys[-1],ls='-.',color=col,lw=2.5,label=r'$%d$'%(3)) 
                 else: 
+                    if l == 2: 
+                        power = -2 
                     ax.plot(np.log(1/xs),(xs/xs[mp])**(power) * ys[mp],ls='--',color=col,lw=2.5,label=r'$p^{%d}$'%(power)) # best power law fit  
 
             else: # plot the expected threshold power 
@@ -165,7 +170,7 @@ elif mode == "trel":
         ax.legend(title=r'$\log_3(L)$',title_fontsize=legend_title_fontsize,fontsize=legend_fontsize)
         ax.legend(fontsize=legend_fontsize)#,loc='lower right')
         # ax.legend(fontsize=legend_fontsize)
-        if not ("twodmaj" in model or "factored_tc" in model):
+        if not ("twodmaj" in model or "tc" in model):
             ax.set_title(r'${\rm %s}\,\,|\, \,\eta = %d$'%(model,data[f]["bias"]))
 
         if model == "rep":
@@ -176,6 +181,13 @@ elif mode == "trel":
             titlestring = r'$\eta = 0$'
             ax.set_title(titlestring)
 
+        if "tc" in model: 
+            if gadgetnoise: 
+                ax.set_title(r'${\rm gadget\, \, noise}$')
+            else: 
+                ax.set_title(r'${\rm measurement\, \, noise}$',fontsize=16)
+                
+
 ### statistics in steady state / critical properties ### 
 elif mode == "stats": 
 
@@ -183,23 +195,24 @@ elif mode == "stats":
     nu = 1.26 
     gamma = 1.05 
     beta = .3
+    alpha = .1
+    pc = .0144
     # reasonable guesses for 5-bit 
     if "5bit" in model: 
         nu = 1.54
         pc = .014 # is this the same as the 3-bit case, wtf?
         gamma = 1.25
 
+    # ofc the following is a dumb way of doing 
     nfs = len(fins)
-    full_chis = np.zeros(nfs,dtype='object')
-    full_ps = np.zeros(nfs,dtype='object')
-    full_binds = np.zeros(nfs,dtype='object') 
-    full_mags = np.zeros(nfs,dtype='object')
-    full_signed_mags = np.zeros(nfs,dtype='object')
-    full_Ts = np.zeros(nfs,dtype='object')
-    full_ts = np.zeros(nfs,dtype='object')
-    full_trels = np.zeros(nfs,dtype='object')
+    thermo_data_keys = ["chis", "floquet_chis", "ps", "halfps", "binds", "floquet_binds", "Ms", "floquet_Ms", "signed_Ms", "floquet_signed_Ms", "dMdps", "Ps", "bindPs", "chiPs", "floquet_Ps", "floquet_bindPs", "floquet_chiPs", "Es", "dEdps", "Cs", "floquet_Cs", "L", "xs"]
+    thermo_data = dict.fromkeys(thermo_data_keys) 
+    for key in thermo_data_keys:
+        thermo_data[key] = np.zeros(nfs,dtype='object')  
+
     Ls = np.zeros(nfs)
 
+    # load in data 
     for (f,fin) in enumerate(fins):
         data = loaddata(fin)
         L = data['L']
@@ -207,17 +220,32 @@ elif mode == "stats":
         Ls[f] = L 
         bias = data['bias']
         ps = data['ps']
-        try: 
-            pc = data['pc']
-        except: # default to the value for the 3-bit rep. code 
-            pc = 0.0144 if bias == 0 else .006 
-        pc = .0143 
-        ts = (ps-pc)/pc
+        print(ps)
+        # try: 
+        #     pc = data['pc']
+        # except: # default to the value for the 3-bit rep. code 
+        #     pc = 0.014 if bias == 0 else .006 
 
-        full_mags[f] = (data["Ms"].T if bias != 0 else data["|M|s"].T) / L**dimension
-        full_chis[f] = data["chis"].T 
-        full_binds[f] = 3 * (1- data["binds"]/3)/2
-        full_ts[f] = ts; full_ps[f] = ps 
+        thermo_data["xs"][f] = data["ps"] # just because scaling_plotter.py uses syntax where the x data is "xs"
+        for key in thermo_data_keys: 
+            try: 
+                if key == "Ms": 
+                    thermo_data[key][f] = data["|M|s"].T 
+                elif key == "floquet_Ms": 
+                    thermo_data[key][f] = data["floquet_|M|s"].T 
+                elif key == "signed_Ms": 
+                    thermo_data[key][f] = data["Ms"].T
+                elif key == "floquet_signed_Ms": 
+                    thermo_data[key][f] = data["floquet_Ms"].T
+                elif "binds" in key: 
+                    thermo_data[key][f] = 3 * (1-data[key].T/3)/2 # object loaded from file is the kurtosis; this gives the normalized binder cumulant
+                else: 
+                    thermo_data[key][f] = data[key].T 
+
+            except: 
+                if key != "xs":
+                    print("data with key %s not found"%key)
+
 
     if not plot_thermo: 
         for (f,fin) in enumerate(fins): 
@@ -332,8 +360,6 @@ elif mode == "stats":
                     ax.set_yscale('log')
 
     else: # plot thermodynamic quantities with the help of scaling_plotter.py: 
-        thermo_data = dict()
-        thermo_data["Ls"] = Ls; thermo_data["binds"] = full_binds; thermo_data["chis"] = full_chis; thermo_data["binds"] = full_binds; thermo_data["mags"] = full_mags; thermo_data["xs"] = full_ps
 
         titlestring = ""
         if model == "rep": 
@@ -341,7 +367,7 @@ elif mode == "stats":
         elif "5bit" in model: 
             titlestring = r'${\rm rep.\, code\,\, (5\,bit)}\,\,|\, \,\eta = %d$'%bias
 
-        scaling_plotter(thermo_data,args.plt,pc,nu0=nu,gamma0=gamma,beta0=beta,raw=args.raw,d=dimension,title=titlestring)
+        scaling_plotter(thermo_data,args.plt,pc,nu0=nu,gamma0=gamma,beta0=beta,alpha0=alpha,raw=args.raw,d=dimension,title=titlestring)
         
 if args.save != 'no':
     plt.savefig(args.save, bbox_inches='tight', pad_inches=0.1,facecolor='w',edgecolor='w',dpi=200)

@@ -14,9 +14,9 @@ this code tests nilpotence for the gates of the tc automaton using both exhausti
 function main()
 
     ### options ### 
-    direct_search = ~false # if true, does a direct search through the spacetime volume of level-l gadgets for l ≤ maxlevel. if false, does the method by which errors are fed-forward from one scale to the next (and over-counted in the process)
-    clean_input_search = false # if true, does recursive search over inputs with no 1-frame damage and errors in the leading EC + bulk gadget 
-    dirty_input_search = true # if true, does recursive search over inputs with arbitrary 1-frame damage on nonlinear points, and errors in the bulk gadget 
+    direct_search = false # if true, does a direct search through the spacetime volume of level-l gadgets for l ≤ maxlevel. if false, does the method by which errors are fed-forward from one scale to the next (and over-counted in the process)
+    clean_input_search = ~false # if true, does recursive search over inputs with no 1-frame damage and errors in the leading EC + bulk gadget 
+    dirty_input_search = false # if true, does recursive search over inputs with arbitrary 1-frame damage on nonlinear points, and errors in the bulk gadget (NOT in the leading EC)
     maxlevel = direct_search ? 4 : 10 # maximum number of levels to try before giving up 
     ###############
 
@@ -78,7 +78,7 @@ function main()
 
                     if t < depth - EC_depth + 1 # don't include errors in the trailing EC step of the gadget currently under investigation (or on the N and E boundaries). 
                         for error in damages[thisgtype] # all the damages that can occur for this gate type 
-                            synds = syndrome_tc_gate_applier!(copy(init_synds),gates,level,[t x y],error)
+                            synds = syndrome_tc_gate_applier!(copy(init_synds),gates,[t x y],error)
                             if sum(synds) > 0 # error was not cleaned up 
                                 failed = true; break 
                             end  
@@ -111,6 +111,16 @@ function main()
             for i in 1:maxlevel
                 damages[gtype*"$i"] = []
             end 
+
+            # code snippet used to determine minimal weight failures for single measurement errors in EC_2 --- on clean inputs they only cause very specific failures of T0 gadgets 
+            # if gtype == "tx"
+            #     damages[gtype*"0"] = [[(0,0), (2,0)]]
+            # elseif gtype == "ty"
+            #     damages[gtype*"0"] = [[(0,0), (0,2)]]
+            # else 
+            #     damages[gtype*"0"] = [[]]
+            # end 
+
             damages[gtype*"0"] = even_vertex_sets([L0s[gtype][1],L0s[gtype][2]]) # level-0 damage sets are all the possible damage configurations that can occur when a gate failure occurs on a clean input 
             # each damage pattern given as a list of syndrome coordinates [[x1 y1] [x2 y2] ...]
         end 
@@ -183,7 +193,7 @@ function main()
                                 end 
 
                                 for error in damages[thisgtype*"$(level-1)"] # all the damages that can occur for this gate type  
-                                    synds = syndrome_tc_gate_applier!(copy(init_synds),lvl1_gates,1,[t x y],error)
+                                    synds = syndrome_tc_gate_applier!(copy(init_synds),lvl1_gates,[t x y],error)
                                     # now extract the output damage 
                                     renormalized_synds = coarse_grain_damage(synds) # an array (possibly empty) of xy coordinate tuples 
                                     renormalized_damage = copy(renormalized_synds)
@@ -211,6 +221,22 @@ function main()
                                         push!(damages[gtype*"$level"],renormalized_damage) 
                                     end 
 
+                                    # example of how to track down the failure that causes a particular error (comment out to run full nilpotence search): 
+                                    # if gtype == "ty" && level == 1 && Set(renormalized_damage) == Set(Any[(0, 0),(1, 0),(0,1),(1,1)])  #&& Set(renormalized_damage)
+                                    #     println("found culprit: error is ",error)
+                                    #     println("which occured to gate $thisgtype at location t,x,y = $t,$x,$y")
+                                    #     failed_noise_hist = get_noise_hist(x,y,t,error,depths[gtype],Lx,Ly)
+                                    #     err_hist, synd_hist = tc_gate_applier!(copy(init_synds),zeros(Bool,Lx,Ly,2),lvl1_gates,1,failed_noise_hist,false,false,false,true)
+                                    #     # save to file 
+                                    #     params = Dict{String, Any}()
+                                    #     params["mode"] = "hist"; params["model"] = "tc"; params["gate"] = "Tx"; params["L"] = Lx; params["l"] = 1; params["depth"] = depths[thisgtype]; params["err_hist"] = err_hist; params["synd_hist"] = synd_hist; params["noise_hist"] = failed_noise_hist; params["periods"] = 1
+                                    #     f = jldopen("data/nilpotence_output.jld2","w")
+                                    #     for (key,object) in params 
+                                    #         write(f,key,object)
+                                    #     end 
+                                    #     close(f)
+                                    #     return 
+                                    # end 
                                     # check for self-similar errors 
                                     if renormalized_damage == error && length(error) > 0 && gtype == thisgtype 
                                         println("found self-similar error!")
