@@ -1,6 +1,6 @@
 local-decoders
 =====
-code relating to the construction and analysis of 1) Tsirelson's 1d memory [1] and its generalizations, and 2) a local Tsirelson-inspired decoder for the 2d toric code. work done jointly with Shankar Balasubramanian and Margarita Davydova. 
+code relating to the construction and analysis of 1) Tsirelson's 1d memory [1] and its generalizations, and 2) a local Tsirelson-inspired decoder for the 2d toric code. work done jointly with Shankar Balasubramanian and Margarita Davydova; available at [this](https://arxiv.org/abs/2412.19803) arXiv posting. 
 
 main files
 =====
