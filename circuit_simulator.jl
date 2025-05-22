@@ -27,6 +27,41 @@ function decode(model,state,synds;decoder_gates=[])
     end            
 end 
 
+function noisy_state(p,L,d)
+    """
+    generates a random state subject to iid errors of strength p.
+    p: density of errors
+    L: system size
+    d: number of dimensions (1 or 2)
+    """
+    ind(i,L) = i > L ? i - L : i 
+    state = d == 1 ? falses(L) : falses(L,L,2) 
+    synds = d == 1 ? falses(L) : falses(L,L)
+    if d == 1 
+        for i in 1:L
+            if rand() < p
+                state[i] = true
+                synds[i] ⊻= true; synds[ind(i+1,L)] ⊻= true
+            end 
+        end
+    elseif d == 2
+        for i in 1:L, j in 1:L, o in 1:2
+            if rand() < p
+                state[i,j,o] = true
+                if o == 1 
+                    synds[i,j] ⊻= true; synds[ind(i+1,L),j] ⊻= true
+                else
+                    synds[i,j] ⊻= true; synds[i,ind(j+1,L)] ⊻= true
+                end
+            end 
+        end
+    else 
+        error("dimension must be 1 or 2")
+    end
+
+    return state, synds
+end 
+
 function main() 
     ##### arguments and options #####
     
@@ -37,16 +72,17 @@ function main()
         * "trel": relaxation time of logical information 
         * "stats": collects statistics about the long time (t >> trel) steady state. used when computing critical properties. 
         * "hist": just runs a single sample of the dynamics; used for visualization / testing specific noise configurations 
+        * "offline": computes the logical error rate under offline decoding
     model ∈ ["rep" "rep_5bit" "k2" "tc" "twod_rep"]
     gate ∈ ["Z" "R" "decoder" "Y" "id" ...]
     test: if true, uses less samples / less periods to speed things up 
     l: level, equals log_n(system size)-1 for EC gates and log_n(system_size) for other gates (in our current (somewhat unfortunate) conventions)
     """
-    mode = "stats" #"stats" # "hist" # "stats" #"trel" 
-    model = "rep" # "rep"
-    gate = "Z"
+    mode = "offline" #"stats" # "hist" # "stats" #"trel" 
+    model = "tc" # "rep"
+    gate = "R"
     test = true 
-    l = 2 # pool
+    l = 1 # pool
     n = model ∈ ["rep" "tc" "twod_rep"] ? 3 : 5
     Lx, Ly = get_gate_size(l,model,gate); L = Lx  
     
@@ -63,7 +99,7 @@ function main()
     measurementnoise = false 
     bias = 0.  
     gadgetnoise = false 
-    nps = mode == "trel" ? (l > 1 ? 7 : 9) : (mode == "Ft" ? 10 : (mode == "hist" ? 1 : (mode == "stats" ? 11 : 1)))  
+    nps = mode == "trel" ? (l > 1 ? 7 : 9) : (mode ∈ ["Ft" "offline"] ? 10 : (mode == "hist" ? 1 : (mode == "stats" ? 11 : 1)))  
     logdist = mode == "trel" ? true : false 
 
     """
@@ -159,7 +195,7 @@ function main()
     ngates = size(gates)[1]
 
     # all the things that we may have reason to measure 
-    datakeys = ["trels" "avg_trels" "Fs" "Ps" "|M|s" "Ms" "floquet_|M|s" "floquet_Ms" "chis" "floquet_chis" "binds" "floquet_binds" "average_history" "dw_stats" "corrs" "tcorrs" "noise_hist" "err_hist" "synd_hist" "floquet_hamming_statistics" "Es" "floquet_Es" "Cs" "floquet_Cs" "dEdps" "dMdps" "halfps"] 
+    datakeys = ["trels" "avg_trels" "Fs" "Ps" "|M|s" "Ms" "floquet_|M|s" "floquet_Ms" "chis" "floquet_chis" "binds" "floquet_binds" "average_history" "dw_stats" "corrs" "tcorrs" "noise_hist" "err_hist" "synd_hist" "floquet_hamming_statistics" "Es" "floquet_Es" "Cs" "floquet_Cs" "dEdps" "dMdps" "halfps" "offline_error_rate"] 
     """
     hamming_statistics: histogram of hamming weight distributions 
     M: magnetization
@@ -244,6 +280,25 @@ function main()
             if l < 3 println("⟨F(t)⟩ = $(data["Fs"][pind,:])") end 
         end 
     
+    ### offline decoding error rate ### 
+    elseif mode == "offline" 
+        println("doing offline decoding for $samps samples (with $periods periods each)...")
+
+        data["offline_error_rate"] = zeros(nps)
+
+        for (pind,p) in enumerate(ps)
+            println("p = $p")
+            for samp in 1:samps 
+                state,synds = noisy_state(p,L,model == "tc" ? 2 : 1) # generate a random state subject to iid errors of strength p
+        
+                state, synds = master_gate_applier(model,state,synds,gates,1,[0],0,gadgetnoise_dict,squarenoise,false,false)
+
+                # decode 
+                data["offline_error_rate"][pind,per] += detect_logical_failure(state) ? 1/samps : 0 
+
+            end 
+            println("⟨offline error rate⟩ = $(data["offline_error_rate"][pind])")
+        end 
 
     ### measure statistical properties of the noneq steady state ### 
     elseif mode == "stats"
