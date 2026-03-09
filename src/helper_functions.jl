@@ -50,6 +50,20 @@ function coarse_grain_damage(synds)
     return output_synds 
 end 
 
+function errs_to_synds(errs)
+    """
+    given an Lx x Ly x 2 array of toric code link errors, returns the Lx x Ly array of syndromes.
+    syndrome at vertex (x,y) is the parity of the 4 adjacent links.
+    """
+    Lx, Ly = size(errs)[1:2]
+    synds = falses(Lx,Ly)
+    for x in 1:Lx, y in 1:Ly
+        xm1 = mod1(x-1,Lx); ym1 = mod1(y-1,Ly)
+        synds[x,y] = errs[x,y,1] ⊻ errs[x,y,2] ⊻ errs[xm1,y,1] ⊻ errs[x,ym1,2]
+    end
+    return synds
+end
+
 function synds_to_links(synds,Lx,Ly)
     """ 
     given a list of syndrome locations, returns a configuration of link spins on an Lx x Ly lattice with syndromes at the appropriate locations. if |synds| is odd, an addition syndrome will be created at (1,1) (this is not a problem since this is a linear point of all gadgets)

@@ -6,6 +6,20 @@ import sys
 from matplotlib.widgets import Slider
 import matplotlib.patches as patches
 from matplotlib.animation import FuncAnimation
+try:
+    import matplotlib.cbook
+    if not hasattr(matplotlib.cbook, "_Stack"):
+        class _Stack(list):
+            def push(self, item):
+                self.append(item)
+                return item
+            def pop(self):
+                return super().pop() if self else None
+            def current(self):
+                return self[-1] if self else None
+        matplotlib.cbook._Stack = _Stack
+except:
+    pass
 
 parser = argparse.ArgumentParser() 
 parser.add_argument('-hist',default='no') # spacetime history of spins to be drawn (optional)

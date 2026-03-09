@@ -5,6 +5,20 @@ import argparse
 import matplotlib.cm as cm 
 import sys 
 from scaling_plotter import * # only used for doing scaling collapses near critical points
+try:
+    import matplotlib.cbook
+    if not hasattr(matplotlib.cbook, "_Stack"):
+        class _Stack(list):
+            def push(self, item):
+                self.append(item)
+                return item
+            def pop(self):
+                return super().pop() if self else None
+            def current(self):
+                return self[-1] if self else None
+        matplotlib.cbook._Stack = _Stack
+except:
+    pass
 
 plt.rcParams['font.family'] = 'serif'
 plt.rcParams['font.serif'] = ['Computer Modern Roman'] + plt.rcParams['font.serif']
@@ -88,13 +102,14 @@ if mode == "Ft":
         bias = data[f]["bias"]
         Fs = data[f]["Fs"].T # fidelities
         l = data[f]["l"]; L = data[f]["L"]
+        print(f"L = {L}")
         ps = data[f]["ps"]
         mp = -1 #int(round(len(ps)/2)) # what point of the data to match when curve fitting 
         inds = np.where(Fs != 1000)[0] # evil 
         xs = ps[inds]
         ys = Fs[inds,-1] # final (latest-time) values of fidelities 
 
-        ax.plot(xs,ys,ls='-' if f == 0 else '-',color=col,mec='k',lw=lw,marker='o',ms=ms,label=r'${%d}$'%(l+1))
+        ax.plot(xs,ys,ls='-' if f == 0 else '-',color=col,mec='k',lw=lw,marker='o',ms=ms,label=r'${%d}$'%(int(np.log(L)/np.log(3))))
         pc = data[f]["pc"]
         ts = ps/pc-1 
 
@@ -108,7 +123,7 @@ if mode == "Ft":
             titlestring = titlestring + r"$\,\,|\,\,{\rm (gadget\, noise)}$"
     ax.set_title(titlestring)
     ax.set(xlabel=r'$p$',ylabel=r"$F$")
-    ax.legend(title=r'$L$',title_fontsize=legend_title_fontsize,fontsize=legend_fontsize)
+    ax.legend(title=r'$\log_3(L)$',title_fontsize=legend_title_fontsize,fontsize=legend_fontsize)
 
     if args.change_xscale: 
         ax.set_xscale('log')
@@ -120,6 +135,7 @@ elif mode == "trel":
     for f in range(len(fins)): 
         col = cmap((f+1)/len(fins))
         L = data[f]["L"]; l = data[f]["l"]; gadgetnoise = data[f]["gadgetnoise"]
+        print(f"L = {L}")
         trels = data[f]["avg_trels"].T # in units of actual circuit depth time (viz. not measured in floquet periods)
         depth = data[f]["depth"].T 
         xs = data[f]["ps"].T 
@@ -143,9 +159,9 @@ elif mode == "trel":
             plot_errorbars = False 
             if plot_errorbars: 
                 full_trels = data[f]["trels"].T 
-                ax.errorbar(np.log(1/xs),ys, yerr=np.std(full_trels,axis=1), fmt='', ecolor='k', elinewidth=1, capsize=1, capthick=1,color=col,mec='k',lw=1.2,marker='o',ms=7,label=r'$l=%d$'%(l)) 
+                ax.errorbar(np.log(1/xs),ys, yerr=np.std(full_trels,axis=1), fmt='', ecolor='k', elinewidth=1, capsize=1, capthick=1,color=col,mec='k',lw=1.2,marker='o',ms=7,label=r'$%d$'%(int(np.log(L)/np.log(3))))
             else: 
-                ax.plot(np.log(1/xs),ys,color=col,mec='k',lw=1.2,marker='o',ms=7,label=r'$l=%d$'%(l)) 
+                ax.plot(np.log(1/xs),ys,color=col,mec='k',lw=1.2,marker='o',ms=7,label=r'$%d$'%(int(np.log(L)/np.log(3))))
 
             plot_crossover = False 
             if model == "tc": # can have some weird scaling, so plot the power law
@@ -181,11 +197,13 @@ elif mode == "trel":
             titlestring = r'$\eta = 0$'
             ax.set_title(titlestring)
 
-        if "tc" in model: 
-            if gadgetnoise: 
+        if "tc" in model:
+            if gadgetnoise:
                 ax.set_title(r'${\rm gadget\, \, noise}$')
-            else: 
+            elif data[f]["measurementnoise"]:
                 ax.set_title(r'${\rm measurement\, \, noise}$',fontsize=16)
+            else:
+                ax.set_title(r'${\rm wire\, \, noise}$',fontsize=16)
                 
 
 ### statistics in steady state / critical properties ### 
@@ -367,7 +385,7 @@ elif mode == "stats":
         elif "5bit" in model: 
             titlestring = r'${\rm rep.\, code\,\, (5\,bit)}\,\,|\, \,\eta = %d$'%bias
 
-        scaling_plotter(thermo_data,args.plt,pc,nu0=nu,gamma0=gamma,beta0=beta,alpha0=alpha,raw=args.raw,d=dimension,title=titlestring)
+        scaling_plotter(thermo_data,args.plt,pc,nu0=nu,gamma0=gamma,beta0=beta,raw=args.raw,d=dimension,title=titlestring)
         
 if args.save != 'no':
     plt.savefig(args.save, bbox_inches='tight', pad_inches=0.1,facecolor='w',edgecolor='w',dpi=200)

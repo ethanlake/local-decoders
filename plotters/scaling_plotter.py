@@ -2,6 +2,20 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm 
 from matplotlib.widgets import Slider
+try:
+    import matplotlib.cbook
+    if not hasattr(matplotlib.cbook, "_Stack"):
+        class _Stack(list):
+            def push(self, item):
+                self.append(item)
+                return item
+            def pop(self):
+                return super().pop() if self else None
+            def current(self):
+                return self[-1] if self else None
+        matplotlib.cbook._Stack = _Stack
+except:
+    pass
 
 # these need to first be defined outide of any function since we are treating them as global later 
 nu = 1; beta = .125; gamma = 1.75

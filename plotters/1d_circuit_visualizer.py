@@ -6,6 +6,20 @@ import matplotlib.cm as cm
 import sys 
 import matplotlib.patches as patches
 from matplotlib.colors import ListedColormap
+try:
+    import matplotlib.cbook
+    if not hasattr(matplotlib.cbook, "_Stack"):
+        class _Stack(list):
+            def push(self, item):
+                self.append(item)
+                return item
+            def pop(self):
+                return super().pop() if self else None
+            def current(self):
+                return self[-1] if self else None
+        matplotlib.cbook._Stack = _Stack
+except:
+    pass
 
 plt.rcParams['font.family'] = 'serif'
 plt.rcParams['font.serif'] = ['Computer Modern Roman'] + plt.rcParams['font.serif']
@@ -14,7 +28,7 @@ pi = np.pi
 cmap = cm.coolwarm
 
 parser = argparse.ArgumentParser() 
-parser.add_argument('-fin',default="data/gates.h5") # a list of gates comprising the circuit to be plotted 
+parser.add_argument('-fin',default="../data/gates.h5") # a list of gates comprising the circuit to be plotted
 parser.add_argument('-history',default="no") # (optional) spacetime spin history to be overlaid on circuit diagram 
 parser.add_argument('-save',default='no') # (optional) name of image file to be saved  
 parser.add_argument('-nocircuit',action='store_true') # if true, doesn't draw the circuit architecture 

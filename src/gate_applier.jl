@@ -1,8 +1,3 @@
-using ArgParse 
-using Random 
-using Statistics
-using LinearAlgebra 
-
 """
 this code contains functions that apply noisy versions of gates to input states, as well as several functions that aid in decoding and analyzing steady-state properties 
 """
@@ -232,7 +227,7 @@ function tsirelson_gate_applier(model,init_state,gates,periods,noise_hist,bias,g
             time = gates[i,3]  
 
             if time != prev_time # if we are just getting to a new timeslice, apply errors (this includes the initial state)
-                if ~gadgetnoise # apply wire noise 
+                if isempty(gadgetnoise) # apply wire noise
                     if iid_noise 
                         for j in 1:L 
                             if rand() < p # whether or not to apply noise 
@@ -268,8 +263,8 @@ function tsirelson_gate_applier(model,init_state,gates,periods,noise_hist,bias,g
                     spins[gloc:gloc+n-1] .= correct(spins[gloc:gloc+n-1])
                 end 
             end 
-            if gadgetnoise
-                if rand() < p # the gate fails -- all spins in its support get randomized 
+            if !isempty(gadgetnoise)
+                if rand() < p # the gate fails -- all spins in its support get randomized
                     gatesize = (gtype == 1 ? 1 : (gtype == 2 ? 2 : n)) 
                     spins[gloc:gloc+gatesize-1] .= rand(Bool,gatesize)
                 end 

@@ -1,8 +1,3 @@
-using Random 
-using Statistics
-using LinearAlgebra 
-using JLD2, FileIO
-
 """
 this code is used to create circuits for 
 1) Tsirelson's 1d self-correcting memory and generalizations thereof (defined for the concatenation of any classical code)
@@ -29,7 +24,7 @@ function get_gate_size(l,model,gate)
     elseif model ∈ ["rep" "rep_5bit" "k2"] # 1d codes 
         if gate ∈ ["X" "I"] Lx = n^l  
         elseif gate ∈ ["Y" "T"] Lx = 2n^l 
-        elseif gate ∈ ["Z" "R" "M"] Lx = n^(l+1) 
+        elseif gate ∈ ["Z" "R" "M" "decoder" "long_decoder" "two_decoders"] Lx = n^(l+1)
         end 
     end   
     if Lx == 1 && Ly == 1 
@@ -133,17 +128,16 @@ function tsirelson_gate_builder(model,l,gate)
 
     nx = 2n-1 # number of rows of Xn-1s that we stack in the definition of Xn 
     
-    function decoder(vec,k) # here input vector should be n^k dimensional 
-        lv = n^k 
-        if k > 1 
-            zn(vec,k-1)
-            for j in 1:n 
-                decoder(vec[1+(j-1)*n^(k-1):j*n^(k-1)],k-1)
-            end 
-        else 
+    function decoder(vec,k) # here input vector should be n^(k+1) dimensional
+        if k > 0
+            zn(vec,k)
+            for j in 1:n
+                decoder(vec[1+(j-1)*n^k:j*n^k],k-1)
+            end
+        else
             zn(vec,0)
-        end 
-    end 
+        end
+    end
 
     function xn(vec,k) 
         """ 
@@ -223,11 +217,11 @@ function tsirelson_gate_builder(model,l,gate)
 
     vec = [i for i in 1:L] 
     
-    if gate == "X"
+    if gate ∈ ["X" "I"]
         xn(vec,l)
-    elseif gate == "Y"
+    elseif gate ∈ ["Y" "T"]
         yn(vec,l)
-    elseif gate == "Z" 
+    elseif gate ∈ ["Z" "R" "M"]
         zn(vec,l)
     elseif gate == "decoder"
         decoder(vec,l)
@@ -850,26 +844,3 @@ function master_gate_builder(model,l,gate;all_boundaries=false)
     return gates, depth, Lx, Ly  
 end 
 
-function main() 
-    model = "tc" # ∈ {"rep" "rep_5bit" "k2" "tc" "twod_rep"}
-    gate = "R" # see individual gate builder functions above for options 
-
-    l = 0
-    n = model ∈ ["rep_5bit" "k2"] ? 5 : 3 # block size 
-
-    adj = ""
-    fout = "data/$(model)$(l)_gates_$(gate)$(adj).jld2" 
-
-    gates = []; depth = 0; L = 0 
-    gates, depth, Lx, Ly = master_gate_builder(model,l,gate)
-
-    println("writing gates to file: $fout")
-    f = jldopen(fout,"w")
-    write(f,"model",model); write(f,"gates",gates); write(f,"gate",gate); write(f,"n",n); write(f,"l",l)
-    write(f,"depth",depth); write(f,"Lx",Lx); write(f,"Ly",Ly); write(f,"L",Lx)
-    close(f)
-end 
-
-if abspath(PROGRAM_FILE) == @__FILE__ 
-    main()
-end

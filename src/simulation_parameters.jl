@@ -1,4 +1,4 @@
-function parameter_repository(model,mode,l,nps,logdist,bias,gadgetnoise,measurementnoise,test)
+function parameter_repository(model,mode,l,nps,logdist,bias,gadgetnoise,measurementnoise,test;pmin_override=nothing,pmax_override=nothing)
     """ 
     this is a place to store numerical information about the locations of thresholds in different types of models + conventions on number of samples to use + etc. 
 
@@ -42,7 +42,7 @@ function parameter_repository(model,mode,l,nps,logdist,bias,gadgetnoise,measurem
             else periods = 200; thermal_periods = 20 end 
         end 
     end 
-    if mode == "hist" periods = 1 end 
+    if mode ∈ ["hist" "noise_search"] periods = 1 end
 
     ####### noise strengths and samples: 1d codes ####### 
 
@@ -93,7 +93,7 @@ function parameter_repository(model,mode,l,nps,logdist,bias,gadgetnoise,measurem
                 else pmin = .006; pmax = .01; samps = 50 
                 end 
             end 
-        elseif mode == "hist" pmin = pc / 5; pmax = pmin 
+        elseif mode ∈ ["hist" "noise_search"] pmin = pc / 5; pmax = pmin
         elseif mode == "stats" 
             pmin = .001; pmax = .055  
             # sweep values with old code: 
@@ -166,8 +166,8 @@ function parameter_repository(model,mode,l,nps,logdist,bias,gadgetnoise,measurem
             pmin = 1e-2; pmax = 1e-1; samps = 100 # for prim R0
         # relaxation time 
         elseif mode == "trel"
-            if l == 0 pmin = 1/exp(10); pmax = 1/exp(7.5); samps = 4000 end # trel bigger than around one period by .01ish
-            if l == 1 pmin = 1/exp(11.1); pmax = 7e-4; samps = 1000 end # around 7e-4, may flatten out around 1e-4
+            if l == 0 pmin = 1/exp(10); pmax = 1/exp(7.5); samps = 500 end # trel bigger than around one period by .01ish
+            if l == 1 pmin = 1/exp(11.1); pmax = 7e-4; samps = 100 end # around 7e-4, may flatten out around 1e-4
             if l == 2 pmin = 1/exp(10.2); pmax = 1/exp(9); samps = 100 end 
             if l == 3 pmin = 1/exp(5); pmax = 1/exp(4); samps = 10 end 
 
@@ -186,8 +186,11 @@ function parameter_repository(model,mode,l,nps,logdist,bias,gadgetnoise,measurem
         end 
     end 
 
+    if pmin_override !== nothing pmin = pmin_override end
+    if pmax_override !== nothing pmax = pmax_override end
+
     ps = []
-    if logdist 
+    if logdist
         ps = [10^(x) for x in range(log10(pmax),log10(pmin);length=nps)] # ps from largest to smallest so that states can be reused when going to smaller p (helps with equilibration) when measuring steady-state properties 
     else 
         ps = [x for x in range(pmax,pmin;length=nps)] 
